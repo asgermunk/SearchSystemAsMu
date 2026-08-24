@@ -73,15 +73,15 @@ Occ(wordId INTEGER, docId INTEGER)   -- the reverse index; INDEX word_index ON O
 
 `indexer/App.Run` → `Crawler.IndexFilesIn(root, [".txt"])`, recursing into subdirectories. Per file: increment `documentCounter` (that counter *is* the document id), insert the document, split the file on `Crawler.separators` into a `HashSet<string>` of distinct words, then insert only the words not seen before and one `Occ` row per distinct word in the file.
 
-Word ids are allocated **in memory** by `Crawler` (`words.Count + 1`) and inserted as explicit ids — the database never generates them. The crawler's `words` dictionary is therefore the source of truth for the whole run, and only the delta (`newWords`) is written per file. Word extraction is presence-only: `Occ` has no term frequency, and no case folding or stemming happens.
+Word ids are allocated **in memory** by `Crawler` (`words.Count + 1`) and inserted as explicit ids — the database never generates them. The crawler's `words` dictionary is therefore the source of truth for the whole run, and only the delta (`newWords`) is written per file. Word extraction is presence-only: `Occ` has no term frequency, and no case folding or stemming happens — the index is case preserving, so case insensitive search is done on the search side by folding the cached `word` table.
 
 ### Search flow
 
-`ConsoleSearch/App` reads a line, splits on spaces, calls `SearchLogic.Search(query, maxAmount: 10)`:
+`ConsoleSearch/App` reads a line, splits on spaces, calls `SearchLogic.Search(query, maxAmount: 10, caseSensitive)`. `caseSensitive` is REPL state on `App`, defaulting to **off** and toggled with `/ChangeCaseSensitive [on|off]`:
 
-1. `GetWordIds` — on first call the implementation loads the *entire* `word` table into `mWords` and caches it for the process lifetime; query words absent from that table go into `Ignored`. Because the cache is loaded once, a search process will not see words added by a later indexer run.
-2. `GetDocuments(wordIds)` — the core query: `SELECT docId, COUNT(wordId) FROM Occ WHERE wordId IN (...) GROUP BY docId ORDER BY count DESC`. This is an OR search ranked by how many distinct query words a document contains.
-3. For the top `maxAmount` doc ids: `GetDocDetails` plus `getMissing` (query words with no `Occ` row for that document), reported to the user alongside `Ignored`.
+1. `GetWordIds(query, caseSensitive, out ignored)` — on first call the implementation loads the *entire* `word` table into `mWords`, plus `mWordsIgnoringCase` (lower cased word → the ids of every casing of it), and caches both for the process lifetime; query words absent from the relevant lookup go into `Ignored`. Because the cache is loaded once, a search process will not see words added by a later indexer run. The return value maps each query word to the ids matching it — one id when case sensitive, potentially several (`the`, `The`, `THE`) when not. Query words that collapse to the same key are searched once.
+2. `GetDocuments(wordIdGroups)` — one group of ids per query word. The core query counts each query word once, no matter how many of its casings the document holds: `SELECT docId, MAX(CASE WHEN wordId IN (<group 1>) THEN 1 ELSE 0 END) + ... AS count FROM Occ WHERE wordId IN (<all ids>) GROUP BY docId ORDER BY count DESC`. This is an OR search ranked by how many distinct query words a document contains.
+3. For the top `maxAmount` doc ids: `GetDocDetails` plus `SearchLogic.MissingWords`, which asks `getMissing` for the ids absent from the document and reports a *query* word as missing when none of its ids are present — so a case insensitive search does not list each casing separately. Reported to the user alongside `Ignored`.
 
 Read-side SQL is assembled by string concatenation of integer id lists (`AsString`) rather than parameters; write-side inserts use parameters and wrap each batch in a transaction.
 

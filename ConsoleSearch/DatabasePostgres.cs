@@ -14,6 +14,10 @@ public class DatabasePostgres : IDatabase
 
         private Dictionary<string, int> mWords = null;
 
+        // lower cased word -> the ids of all indexed words with that spelling,
+        // regardless of casing. Used for case insensitive search.
+        private Dictionary<string, List<int>> mWordsIgnoringCase = null;
+
         public DatabasePostgres()
         {
 
@@ -37,22 +41,32 @@ public class DatabasePostgres : IDatabase
 
 
         // key is the id of the document, the value is number of search words in the document
-        public List<KeyValuePair<int, int>> GetDocuments(List<int> wordIds)
+        public List<KeyValuePair<int, int>> GetDocuments(List<List<int>> wordIdGroups)
         {
             var res = new List<KeyValuePair<int, int>>();
 
-            /* Example sql statement looking for doc id's that
-               contain words with id 2 and 3
-            
-               SELECT docId, COUNT(wordId) as count
+            /* Example sql statement looking for doc id's that contain the words
+               with id 2 or 3, where 2 and 3 are two different casings of the same
+               query word, and the word with id 7
+
+               SELECT docId, MAX(CASE WHEN wordId in (2,3) THEN 1 ELSE 0 END)
+                           + MAX(CASE WHEN wordId in (7) THEN 1 ELSE 0 END) as count
                  FROM Occ
-                WHERE wordId in (2,3)
+                WHERE wordId in (2,3,7)
              GROUP BY docId
-             ORDER BY COUNT(wordId) DESC 
+             ORDER BY count DESC
              */
 
-            var sql = "SELECT docId, COUNT(wordId) as count FROM Occ where ";
-            sql += "wordId in " + AsString(wordIds) + " GROUP BY docId ";
+            var allWordIds = new List<int>();
+            var counters = new List<string>();
+            foreach (var group in wordIdGroups)
+            {
+                allWordIds.AddRange(group);
+                counters.Add($"MAX(CASE WHEN wordId in {AsString(group)} THEN 1 ELSE 0 END)");
+            }
+
+            var sql = "SELECT docId, " + string.Join(" + ", counters) + " as count FROM Occ where ";
+            sql += "wordId in " + AsString(allWordIds) + " GROUP BY docId ";
             sql += "ORDER BY count DESC;";
 
             var selectCmd = _connection.CreateCommand();
@@ -171,19 +185,55 @@ public class DatabasePostgres : IDatabase
             return result;
         }
 
-        public List<int> GetWordIds(string[] query, out List<string> outIgnored)
+        /* Group the indexed words by their lower cased spelling, so a case insensitive
+         * lookup can find every casing of a word in one go.
+         */
+        private Dictionary<string, List<int>> GroupWordsIgnoringCase(Dictionary<string, int> words)
+        {
+            var res = new Dictionary<string, List<int>>();
+            foreach (var p in words)
+            {
+                var key = p.Key.ToLower();
+                if (!res.ContainsKey(key))
+                    res.Add(key, new List<int>());
+                res[key].Add(p.Value);
+            }
+            return res;
+        }
+
+        public Dictionary<string, List<int>> GetWordIds(string[] query, bool caseSensitive, out List<string> outIgnored)
         {
             if (mWords == null)
+            {
                 mWords = GetAllWords();
-            var res = new List<int>();
+                mWordsIgnoringCase = GroupWordsIgnoringCase(mWords);
+            }
+            var res = new Dictionary<string, List<int>>();
             var ignored = new List<string>();
+            var seen = new HashSet<string>();
 
             foreach (var aWord in query)
             {
-                if (mWords.ContainsKey(aWord))
-                    res.Add(mWords[aWord]);
+                // the same word twice in the query counts once - and "The" and "the"
+                // are the same word when the search is case insensitive
+                var key = caseSensitive ? aWord : aWord.ToLower();
+                if (!seen.Add(key))
+                    continue;
+
+                if (caseSensitive)
+                {
+                    if (mWords.ContainsKey(aWord))
+                        res.Add(aWord, new List<int> { mWords[aWord] });
+                    else
+                        ignored.Add(aWord);
+                }
                 else
-                    ignored.Add(aWord);
+                {
+                    if (mWordsIgnoringCase.ContainsKey(key))
+                        res.Add(aWord, new List<int>(mWordsIgnoringCase[key]));
+                    else
+                        ignored.Add(aWord);
+                }
             }
             outIgnored = ignored;
             return res;
