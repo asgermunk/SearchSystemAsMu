@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using SearchFrontend.Models;
+using Shared.Contracts;
 
 namespace SearchFrontend.Services;
 
@@ -14,9 +14,11 @@ public class SearchApiClient
         mHttp = http;
     }
 
-    public async Task<WordInstancesResponse?> GetInstancesAsync(string word, int maxAmount = 10, bool caseSensitive = false)
+    public async Task<SearchResponse?> SearchAsync(string query, int maxAmount = 10, bool caseSensitive = false)
     {
-        var url = $"api/search/instances?word={Uri.EscapeDataString(word)}&maxAmount={maxAmount}&caseSensitive={caseSensitive}";
-        return await mHttp.GetFromJsonAsync<WordInstancesResponse>(url);
+        var url = $"api/search/instances?query={Uri.EscapeDataString(query)}"
+                + $"&maxAmount={maxAmount}&caseSensitive={caseSensitive}";
+
+        return await mHttp.GetFromJsonAsync<SearchResponse>(url);
     }
 }

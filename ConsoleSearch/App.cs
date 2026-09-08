@@ -1,25 +1,28 @@
 using System;
-using SearchCore;
+using System.Net.Http;
+using System.Threading.Tasks;
+using Shared.Contracts;
 
 namespace ConsoleSearch
 {
-    /* The user interface of the search system - it knows nothing but ISearchLogic.
+    /* The user interface of the search system - it knows nothing but the API client.
      */
     public class App
     {
-        private readonly ISearchLogic mSearchLogic;
+        private readonly SearchApiClient mClient;
 
         // false: "hello" also matches "Hello" and "HELLO" in the index
         private bool mCaseSensitive = false;
 
-        public App(ISearchLogic searchLogic)
+        public App(SearchApiClient client)
         {
-            mSearchLogic = searchLogic;
+            mClient = client;
         }
 
-        public void Run()
+        public async Task Run()
         {
             Console.WriteLine("Console Search");
+            Console.WriteLine($"Searching through {mClient.BaseAddress}");
             Console.WriteLine("/ChangeCaseSensitive [on|off] - turn case sensitive search on or off");
 
             while (true)
@@ -37,20 +40,38 @@ namespace ConsoleSearch
                 var query = input.Split(" ", StringSplitOptions.RemoveEmptyEntries);
                 if (query.Length == 0) continue;
 
-                var result = mSearchLogic.Search(query, 10, mCaseSensitive);
+                var result = await Search(query);
+                if (result == null) continue;
 
                 if (result.Ignored.Count > 0) {
                     Console.WriteLine($"Ignored: {string.Join(',', result.Ignored)}");
                 }
-                
+
                 int idx = 1;
-                foreach (var doc in result.DocumentHits) {
-                    Console.WriteLine($"{idx} : {doc.Document.mUrl} -- contains {doc.NoOfHits} search terms");
-                    Console.WriteLine("Index time: " + doc.Document.mIdxTime);
+                foreach (var doc in result.Documents) {
+                    Console.WriteLine($"{idx} : {doc.Url} -- contains {doc.NoOfHits} search terms");
+                    Console.WriteLine("Index time: " + doc.IndexTime);
                     Console.WriteLine($"Missing: {ArrayAsString(doc.Missing.ToArray())}");
                     idx++;
                 }
-                Console.WriteLine("Documents: " + result.Hits + ". Time: " + result.TimeUsed.TotalMilliseconds);
+                Console.WriteLine("Documents: " + result.Hits + ". Time: " + result.TimeUsedMs);
+            }
+        }
+
+        /* The search runs in another process now, so it can simply be unreachable.
+         * Say so rather than letting the exception end the session.
+         */
+        private async Task<SearchResponse> Search(string[] query)
+        {
+            try
+            {
+                return await mClient.SearchAsync(query, 10, mCaseSensitive);
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine($"Could not reach the search API on {mClient.BaseAddress} - {e.Message}");
+                Console.WriteLine("Start it with: dotnet run --project API --launch-profile http");
+                return null;
             }
         }
 

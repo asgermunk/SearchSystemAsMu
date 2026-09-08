@@ -1,11 +1,11 @@
-using API.Models;
+using API.Search;
 using Microsoft.AspNetCore.Mvc;
-using SearchCore;
+using Shared.Contracts;
 
 namespace API.Controllers;
 
-/* The web front end of the search component. It holds no search logic - it only
- * translates HTTP into a call on the injected ISearchLogic and back into JSON.
+/* The web face of the search service. It holds no search logic - it translates
+ * HTTP into a call on ISearchLogic and the result into the shared wire contract.
  */
 [ApiController]
 [Route("api/[controller]")]
@@ -20,42 +20,46 @@ public class SearchController : ControllerBase
     }
 
     /// <summary>
-    /// Get the documents a single word occurs in, most relevant first.
+    /// Get the documents the query words occur in, ranked by how many distinct
+    /// query words each document contains.
     /// </summary>
-    /// <param name="word">The word to look up.</param>
+    /// <param name="query">The search terms, separated by spaces.</param>
     /// <param name="maxAmount">How many documents to return details for.</param>
     /// <param name="caseSensitive">When false, "the" also matches "The" and "THE".</param>
     [HttpGet("instances")]
-    [ProducesResponseType(typeof(WordInstancesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<WordInstancesResponse> GetInstances(
-        [FromQuery] string word,
+    public ActionResult<SearchResponse> GetInstances(
+        [FromQuery] string query,
         [FromQuery] int maxAmount = 10,
         [FromQuery] bool caseSensitive = false)
     {
-        if (string.IsNullOrWhiteSpace(word))
-            return BadRequest("A word must be given.");
+        if (string.IsNullOrWhiteSpace(query))
+            return BadRequest("A query must be given.");
         if (maxAmount < 1)
             return BadRequest("maxAmount must be at least 1.");
 
-        var result = mSearchLogic.Search(new[] { word.Trim() }, maxAmount, caseSensitive);
+        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        var response = new WordInstancesResponse
+        var result = mSearchLogic.Search(words, maxAmount, caseSensitive);
+
+        var response = new SearchResponse
         {
-            Word = word.Trim(),
-            // a word not present in any document is reported as ignored by the search
-            InIndex = result.Ignored.Count == 0,
+            Query = words.ToList(),
             Hits = result.Hits,
-            TimeUsedMs = result.TimeUsed.TotalMilliseconds
+            TimeUsedMs = result.TimeUsed.TotalMilliseconds,
+            Ignored = result.Ignored
         };
 
         foreach (var hit in result.DocumentHits)
         {
-            response.Documents.Add(new DocumentInstance
+            response.Documents.Add(new DocumentHitDto
             {
                 DocumentId = hit.Document.mId,
                 Url = hit.Document.mUrl,
-                IndexTime = hit.Document.mIdxTime
+                IndexTime = hit.Document.mIdxTime,
+                NoOfHits = hit.NoOfHits,
+                Missing = hit.Missing
             });
         }
 

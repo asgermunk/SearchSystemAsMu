@@ -1,5 +1,4 @@
-using SearchCore;
-using SearchRepository;
+using API.Search;
 using Shared;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,24 +6,19 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
-/* The search component is wired up here, exactly as ConsoleSearch does it - this
- * project is just another host for it. The database path comes from configuration
- * when it is set, otherwise from the shared constant.
+/* The search service lives in this process. The database path comes from
+ * configuration when it is set, otherwise from the shared constant.
  */
-builder.Services.AddSearchCore();
-builder.Services.AddSqliteSearchRepository(new SearchRepositoryOptions
+builder.Services.AddSearch(new SearchOptions
 {
-    SqliteDatabasePath = builder.Configuration["SearchRepository:SqliteDatabasePath"]
+    SqliteDatabasePath = builder.Configuration["Search:SqliteDatabasePath"]
                          ?? Paths.SQLITE_DATABASE
 });
 
-/* The Blazor frontend runs on its own origin, so the browser needs CORS to let it
- * call this API. Nothing about the search services changes.
- */
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("frontend", policy => policy
-        .WithOrigins("http://localhost:5136", "https://localhost:7053")
+        .AllowAnyOrigin()
         .AllowAnyHeader()
         .AllowAnyMethod());
 });

@@ -9,8 +9,6 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\SearchCore\SearchCore.csproj" />
     <ProjectReference Include="..\Shared\Shared.csproj" />
-    <ProjectReference Include="..\SearchRepository\SearchRepository.csproj" />
   </ItemGroup>
 </Project>

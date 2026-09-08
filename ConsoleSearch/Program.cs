@@ -1,29 +1,31 @@
+using System;
+using System.Net.Http;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using SearchCore;
-using SearchRepository;
-using Shared;
 
 namespace ConsoleSearch
 {
-    /* Composition root. This is the only file that decides which database the search
-     * component runs on - a service host would replace exactly this file.
+    /* Composition root. The REPL is a client of the search service now, so the only
+     * thing it has to be told is where that service lives.
      */
     class Program
     {
-        static void Main(string[] args)
+        private const string DefaultApiBaseUrl = "http://localhost:5223/";
+
+        static async Task Main(string[] args)
         {
+            // "dotnet run --project ConsoleSearch -- http://otherhost:5223/" also works
+            var apiBaseUrl = args.Length > 0 ? args[0] : DefaultApiBaseUrl;
+
             var services = new ServiceCollection();
 
-            services.AddSearchCore();
-            services.AddSqliteSearchRepository(new SearchRepositoryOptions
-            {
-                SqliteDatabasePath = Paths.SQLITE_DATABASE
-            });
+            services.AddSingleton(new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
+            services.AddSingleton<SearchApiClient>();
             services.AddSingleton<App>();
 
             using var provider = services.BuildServiceProvider();
 
-            provider.GetRequiredService<App>().Run();
+            await provider.GetRequiredService<App>().Run();
         }
     }
 }

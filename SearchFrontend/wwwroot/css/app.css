@@ -229,6 +229,20 @@ main {
     color: var(--ink);
 }
 
+.ignored {
+    color: var(--ink-soft);
+    font-size: 13px;
+    margin: -14px 0 22px;
+}
+
+.result-missing {
+    margin: 3px 0 0;
+    color: var(--ink-soft);
+    font-size: 13px;
+}
+
+.result-missing strong { font-weight: 700; color: var(--ink); }
+
 .empty { max-width: 560px; line-height: 22px; }
 .empty ul { color: var(--ink-soft); padding-left: 20px; }
 .empty li { margin: 6px 0; }

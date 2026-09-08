@@ -1,12 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <ItemGroup>
-      <ProjectReference Include="..\SearchCore\SearchCore.csproj" />
       <ProjectReference Include="..\Shared\Shared.csproj" />
-      <ProjectReference Include="..\SearchRepository\SearchRepository.csproj" />
-    </ItemGroup>
+      </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.1" />
       <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
     </ItemGroup>
 

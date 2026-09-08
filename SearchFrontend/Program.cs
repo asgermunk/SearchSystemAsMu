@@ -8,7 +8,7 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // where the search API lives - see wwwroot/appsettings.json
-var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5223/";
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5222/";
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
 builder.Services.AddScoped<SearchApiClient>();

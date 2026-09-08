@@ -2,9 +2,10 @@
 @using SearchFrontend.Components
 @using SearchFrontend.Models
 @using SearchFrontend.Services
+@using Shared.Contracts
 @inject SearchApiClient Api
 
-<PageTitle>@(mResult is null ? "Søgle" : $"{mResult.Word} - Søgle")</PageTitle>
+<PageTitle>@(mResult is null ? "Søgle" : $"{string.Join(' ', mResult.Query)} - Søgle")</PageTitle>
 
 @if (!mHasSearched)
 {
@@ -20,11 +21,6 @@
             <button class="btn" @onclick="Search">Søgle Search</button>
             <button class="btn" @onclick="FeelingLucky">I'm Feeling Lucky</button>
         </div>
-
-        @if (mHint is not null)
-        {
-            <p class="hint">@mHint</p>
-        }
     </div>
 }
 else
@@ -39,11 +35,7 @@ else
     </header>
 
     <div class="results">
-        @if (mHint is not null)
-        {
-            <p class="hint">@mHint</p>
-        }
-        else if (mLoading)
+        @if (mLoading)
         {
             <p class="stats">Searching...</p>
         }
@@ -57,12 +49,12 @@ else
         }
         else if (mResult is not null)
         {
-            @if (!mResult.InIndex)
+            @if (mResult.Hits == 0)
             {
                 <div class="empty">
-                    <p>Your search - <strong>@mResult.Word</strong> - did not match any documents.</p>
+                    <p>Your search - <strong>@string.Join(' ', mResult.Query)</strong> - did not match any documents.</p>
                     <ul>
-                        <li>Make sure the word is spelled correctly.</li>
+                        <li>Make sure every word is spelled correctly.</li>
                         <li>The index is case preserving - try turning case sensitivity off.</li>
                     </ul>
                 </div>
@@ -78,15 +70,25 @@ else
                     }
                 </p>
 
+                @if (mResult.Ignored.Count > 0)
+                {
+                    <p class="ignored">Not in the index: <strong>@string.Join(", ", mResult.Ignored)</strong></p>
+                }
+
                 @foreach (var doc in mResult.Documents)
                 {
                     <article class="result">
-                        <div class="result-path">@doc.Folder</div>
-                        <h3 class="result-title">@doc.FileName</h3>
+                        <div class="result-path">@doc.Folder()</div>
+                        <h3 class="result-title">@doc.FileName()</h3>
                         <p class="result-snippet">
-                            Document #@doc.DocumentId contains <em>@mResult.Word</em>.
+                            Document #@doc.DocumentId contains @doc.NoOfHits of @mResult.Query.Count
+                            search term@(mResult.Query.Count == 1 ? "" : "s").
                             Indexed @doc.IndexTime.
                         </p>
+                        @if (doc.Missing.Count > 0)
+                        {
+                            <p class="result-missing">Missing: <strong>@string.Join(", ", doc.Missing)</strong></p>
+                        }
                     </article>
                 }
             }
@@ -95,7 +97,7 @@ else
 }
 
 <footer class="footer">
-    Søgle - a front end for the SearchCore reverse index. One word at a time.
+    Søgle - a front end for the search API over the reverse index.
 </footer>
 
 @code {
@@ -138,20 +140,11 @@ else
     private bool mHasSearched;
     private bool mLoading;
     private string? mError;
-    private string? mHint;
-    private WordInstancesResponse? mResult;
+    private SearchResponse? mResult;
 
-    private void OnInput(ChangeEventArgs e)
-    {
-        mQuery = e.Value?.ToString() ?? string.Empty;
-        mHint = null;
-    }
+    private void OnInput(ChangeEventArgs e) => mQuery = e.Value?.ToString() ?? string.Empty;
 
-    private void Clear()
-    {
-        mQuery = string.Empty;
-        mHint = null;
-    }
+    private void Clear() => mQuery = string.Empty;
 
     private async Task ToggleCase()
     {
@@ -171,35 +164,22 @@ else
         mHasSearched = false;
         mResult = null;
         mError = null;
-        mHint = null;
         mQuery = string.Empty;
     }
 
     private async Task Search()
     {
-        var word = mQuery.Trim();
-        if (word.Length == 0)
+        var query = mQuery.Trim();
+        if (query.Length == 0)
             return;
 
-        /* The index is built from single words and the API looks up one word, so a
-         * query with spaces is turned away here rather than silently finding nothing.
-         */
-        if (word.Contains(' '))
-        {
-            mHint = "Søgle looks up one word at a time - try a single word.";
-            mHasSearched = true;
-            mResult = null;
-            return;
-        }
-
-        mHint = null;
         mHasSearched = true;
         mLoading = true;
         mError = null;
 
         try
         {
-            mResult = await Api.GetInstancesAsync(word, 10, mCaseSensitive);
+            mResult = await Api.SearchAsync(query, 10, mCaseSensitive);
         }
         catch (Exception ex)
         {
