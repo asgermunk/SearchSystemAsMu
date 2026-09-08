@@ -1,0 +1,10 @@
+﻿using System;
+using System.Collections.Generic;
+
+namespace API.Search;
+
+public interface ISearchLogic
+{
+    SearchResult Search(String[] query, int maxAmount, bool caseSensitive);
+    List<string> MissingWords(int docId, Dictionary<string, List<int>> wordIds, List<int> allWordIds);
+}
