@@ -1,0 +1,220 @@
+@page "/"
+@using SearchFrontend.Components
+@using SearchFrontend.Models
+@using SearchFrontend.Services
+@inject SearchApiClient Api
+
+<PageTitle>@(mResult is null ? "Søgle" : $"{mResult.Word} - Søgle")</PageTitle>
+
+@if (!mHasSearched)
+{
+    @* Landing: everything centred, the way a search engine greets you *@
+    <div class="landing">
+        <Logo Height="92" />
+
+        <div class="landing-box">
+            @SearchBox
+        </div>
+
+        <div class="landing-buttons">
+            <button class="btn" @onclick="Search">Søgle Search</button>
+            <button class="btn" @onclick="FeelingLucky">I'm Feeling Lucky</button>
+        </div>
+
+        @if (mHint is not null)
+        {
+            <p class="hint">@mHint</p>
+        }
+    </div>
+}
+else
+{
+    <header class="topbar">
+        <a class="topbar-logo" href="" @onclick:preventDefault @onclick="Reset">
+            <Logo Height="34" />
+        </a>
+        <div class="topbar-box">
+            @SearchBox
+        </div>
+    </header>
+
+    <div class="results">
+        @if (mHint is not null)
+        {
+            <p class="hint">@mHint</p>
+        }
+        else if (mLoading)
+        {
+            <p class="stats">Searching...</p>
+        }
+        else if (mError is not null)
+        {
+            <div class="error">
+                <strong>The search API did not answer.</strong>
+                <span>@mError</span>
+                <span class="error-note">Is the API running on @ApiHint?</span>
+            </div>
+        }
+        else if (mResult is not null)
+        {
+            @if (!mResult.InIndex)
+            {
+                <div class="empty">
+                    <p>Your search - <strong>@mResult.Word</strong> - did not match any documents.</p>
+                    <ul>
+                        <li>Make sure the word is spelled correctly.</li>
+                        <li>The index is case preserving - try turning case sensitivity off.</li>
+                    </ul>
+                </div>
+            }
+            else
+            {
+                <p class="stats">
+                    About @mResult.Hits result@(mResult.Hits == 1 ? "" : "s")
+                    (@Elapsed(mResult.TimeUsedMs))
+                    @if (mResult.Documents.Count < mResult.Hits)
+                    {
+                        <span class="stats-note">- showing the top @mResult.Documents.Count</span>
+                    }
+                </p>
+
+                @foreach (var doc in mResult.Documents)
+                {
+                    <article class="result">
+                        <div class="result-path">@doc.Folder</div>
+                        <h3 class="result-title">@doc.FileName</h3>
+                        <p class="result-snippet">
+                            Document #@doc.DocumentId contains <em>@mResult.Word</em>.
+                            Indexed @doc.IndexTime.
+                        </p>
+                    </article>
+                }
+            }
+        }
+    </div>
+}
+
+<footer class="footer">
+    Søgle - a front end for the SearchCore reverse index. One word at a time.
+</footer>
+
+@code {
+    // the shared search field, rendered both on the landing page and in the top bar
+    private RenderFragment SearchBox => __builder =>
+    {
+        @* a real form, so Enter searches the way it does in a browser's search bar *@
+        <form class="box" @onsubmit="Search" @onsubmit:preventDefault>
+            @* also the form's submit button, so Enter in the field searches *@
+            <button class="box-submit" type="submit" title="Search" aria-label="Search">
+                <svg class="box-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14" />
+                </svg>
+            </button>
+
+            <input class="box-input" type="search" placeholder="Search the index"
+                   aria-label="Search the index"
+                   value="@mQuery"
+                   @oninput="OnInput" />
+
+            @if (!string.IsNullOrEmpty(mQuery))
+            {
+                <button class="box-clear" type="button" title="Clear" @onclick="Clear">&times;</button>
+            }
+
+            <button class="box-case @(mCaseSensitive ? "on" : "")" type="button"
+                    title="@(mCaseSensitive ? "Case sensitive search is on" : "Case sensitive search is off")"
+                    @onclick="ToggleCase">Aa</button>
+        </form>
+    };
+
+    private const string ApiHint = "http://localhost:5223";
+
+    // words that are worth a random shot at the mail corpus
+    private static readonly string[] LuckyWords =
+        { "enron", "meeting", "energy", "monday", "please", "contract", "power", "thanks" };
+
+    private string mQuery = string.Empty;
+    private bool mCaseSensitive;
+    private bool mHasSearched;
+    private bool mLoading;
+    private string? mError;
+    private string? mHint;
+    private WordInstancesResponse? mResult;
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        mQuery = e.Value?.ToString() ?? string.Empty;
+        mHint = null;
+    }
+
+    private void Clear()
+    {
+        mQuery = string.Empty;
+        mHint = null;
+    }
+
+    private async Task ToggleCase()
+    {
+        mCaseSensitive = !mCaseSensitive;
+        if (mHasSearched && !string.IsNullOrWhiteSpace(mQuery))
+            await Search();
+    }
+
+    private async Task FeelingLucky()
+    {
+        mQuery = LuckyWords[Random.Shared.Next(LuckyWords.Length)];
+        await Search();
+    }
+
+    private void Reset()
+    {
+        mHasSearched = false;
+        mResult = null;
+        mError = null;
+        mHint = null;
+        mQuery = string.Empty;
+    }
+
+    private async Task Search()
+    {
+        var word = mQuery.Trim();
+        if (word.Length == 0)
+            return;
+
+        /* The index is built from single words and the API looks up one word, so a
+         * query with spaces is turned away here rather than silently finding nothing.
+         */
+        if (word.Contains(' '))
+        {
+            mHint = "Søgle looks up one word at a time - try a single word.";
+            mHasSearched = true;
+            mResult = null;
+            return;
+        }
+
+        mHint = null;
+        mHasSearched = true;
+        mLoading = true;
+        mError = null;
+
+        try
+        {
+            mResult = await Api.GetInstancesAsync(word, 10, mCaseSensitive);
+        }
+        catch (Exception ex)
+        {
+            mResult = null;
+            mError = ex.Message;
+        }
+        finally
+        {
+            mLoading = false;
+        }
+    }
+
+    /* Google says "(0.42 seconds)", but this index often answers faster than that
+     * rounds to, so show milliseconds when a search is quicker than 10 ms.
+     */
+    private static string Elapsed(double ms) =>
+        ms >= 10 ? $"{(ms / 1000):0.00} seconds" : $"{ms:0.#} ms";
+}

@@ -1,16 +1,24 @@
 using System;
+using SearchCore;
 
 namespace ConsoleSearch
 {
+    /* The user interface of the search system - it knows nothing but ISearchLogic.
+     */
     public class App
     {
+        private readonly ISearchLogic mSearchLogic;
+
         // false: "hello" also matches "Hello" and "HELLO" in the index
         private bool mCaseSensitive = false;
 
+        public App(ISearchLogic searchLogic)
+        {
+            mSearchLogic = searchLogic;
+        }
+
         public void Run()
         {
-            IDatabase db = GetDatabase();
-            SearchLogic mSearchLogic = new SearchLogic(db);
             Console.WriteLine("Console Search");
             Console.WriteLine("/ChangeCaseSensitive [on|off] - turn case sensitive search on or off");
 
@@ -64,18 +72,6 @@ namespace ConsoleSearch
 
             mCaseSensitive = setting.Equals("on", StringComparison.OrdinalIgnoreCase);
             Console.WriteLine($"Case sensitive search is {OnOff(mCaseSensitive)}");
-        }
-
-        private IDatabase GetDatabase()
-        {
-            Console.Write("Use SQLite (1) or Postgres (2) database?");
-            string input = Console.ReadLine();
-            if (input.Equals("1"))
-                return new DatabaseSqlite();
-            else if (input.Equals("2"))
-                return new DatabasePostgres();
-            Console.WriteLine("Wrong input - try again...");
-            return GetDatabase();
         }
 
         string OnOff(bool b) => b ? "on" : "off";
