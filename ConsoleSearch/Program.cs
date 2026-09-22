@@ -10,7 +10,7 @@ namespace ConsoleSearch
      */
     class Program
     {
-        private const string DefaultApiBaseUrl = "http://localhost:5223/";
+        private const string DefaultApiBaseUrl = "http://localhost:5222/";
 
         static async Task Main(string[] args)
         {

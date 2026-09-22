@@ -10,32 +10,43 @@ namespace Indexer
     {
         private SqliteConnection _connection;
 
-        public DatabaseSqlite()
+        public DatabaseSqlite(string databasePath)
         {
 
             var connectionStringBuilder = new SqliteConnectionStringBuilder();
 
             connectionStringBuilder.Mode = SqliteOpenMode.ReadWriteCreate;
 
-            connectionStringBuilder.DataSource = Paths.SQLITE_DATABASE;
+            connectionStringBuilder.DataSource = databasePath;
 
 
             _connection = new SqliteConnection(connectionStringBuilder.ConnectionString);
 
             _connection.Open();
 
-            Execute("DROP TABLE IF EXISTS Occ");
+            if (HasIndexedDocuments())
+                throw new InvalidOperationException(
+                    $"The database '{databasePath}' already contains an index. "
+                    + "The indexer does not support incremental indexing and will not overwrite it.");
 
-            Execute("DROP TABLE IF EXISTS document");
-            Execute("CREATE TABLE document(id INTEGER PRIMARY KEY, url TEXT, idxTime TEXT, creationTime TEXT)");
-
-            Execute("DROP TABLE IF EXISTS word");
-            Execute("CREATE TABLE word(id INTEGER PRIMARY KEY, name VARCHAR(50))");
-
-            Execute("CREATE TABLE Occ(wordId INTEGER, docId INTEGER, "
+            Execute("CREATE TABLE IF NOT EXISTS document(id INTEGER PRIMARY KEY, url TEXT, idxTime TEXT, creationTime TEXT)");
+            Execute("CREATE TABLE IF NOT EXISTS word(id INTEGER PRIMARY KEY, name VARCHAR(50))");
+            Execute("CREATE TABLE IF NOT EXISTS Occ(wordId INTEGER, docId INTEGER, "
                     + "FOREIGN KEY (wordId) REFERENCES word(id), "
                     + "FOREIGN KEY (docId) REFERENCES document(id))");
-            Execute("CREATE INDEX word_index ON Occ (wordId)");
+            Execute("CREATE INDEX IF NOT EXISTS word_index ON Occ (wordId)");
+        }
+
+        private bool HasIndexedDocuments()
+        {
+            var command = _connection.CreateCommand();
+            command.CommandText = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'document')";
+
+            if (Convert.ToInt32(command.ExecuteScalar()) == 0)
+                return false;
+
+            command.CommandText = "SELECT EXISTS(SELECT 1 FROM document LIMIT 1)";
+            return Convert.ToInt32(command.ExecuteScalar()) == 1;
         }
 
         private void Execute(string sql)

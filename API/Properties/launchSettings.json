@@ -1,22 +1,24 @@
 ﻿{
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "http": {
+    "allen-p": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "applicationUrl": "http://localhost:5223",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Search__SqliteDatabasePath": "C:\\Users\\Asger\\Desktop\\6. Sem\\Arkitektur principper\\DB\\AllenP.db"
       }
     },
-    "http2": {
+    "arnold-j": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "applicationUrl": "http://localhost:5224",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Search__SqliteDatabasePath": "C:\\Users\\Asger\\Desktop\\6. Sem\\Arkitektur principper\\DB\\ArnoldJ.db"
       }
     },
     "https": {
