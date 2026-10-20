@@ -1,7 +1,14 @@
 using API.Search;
+using NLog.Web;
 using Shared;
 
 var builder = WebApplication.CreateBuilder(args);
+
+/* NLog replaces the default providers and writes JSON lines to stdout (see
+ * nlog.config), which is where promtail picks them up for Loki in the cluster.
+ */
+builder.Logging.ClearProviders();
+builder.Host.UseNLog();
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
