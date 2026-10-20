@@ -61,6 +61,10 @@ The API listens on `http://localhost:5223` (Swagger at `/swagger`), the load bal
 
 There is no test project, linter, or CI configuration in the repo.
 
+### Docker
+
+Every project has a `Dockerfile` that must be built from the solution root (they all copy `Shared`). `docker-compose.yml` runs two API shards (`AllenP.db` on 5223, `ArnoldJ.db` on 5224), the coordinator on 5222 and the frontend (nginx) on 5136. The `.db` files are mounted from `DB_DIR` (default `../DB`). The coordinator reads its shards from `Search:Backends` (`Search__Backends__0`, ...) and falls back to the localhost ports when unset. `indexer` and `console` are under the `tools` profile and are run with `docker compose run`.
+
 ## Configuration that must be edited before anything runs
 
 These are hardcoded source constants (checked in with one developer's macOS paths), not settings files:

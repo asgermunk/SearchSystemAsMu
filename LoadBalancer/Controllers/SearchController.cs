@@ -10,17 +10,23 @@ namespace LoadBalancer.Controllers;
 public class SearchController : ControllerBase
 {
     // Each backend owns a different shard of the indexed document collection.
-    private static readonly string[] Backends =
+    // Used when Search:Backends is not configured (e.g. a plain "dotnet run").
+    private static readonly string[] DefaultBackends =
     {
         "http://localhost:5223",
         "http://localhost:5224"
     };
 
     private readonly HttpClient mHttp;
+    private readonly string[] Backends;
 
-    public SearchController(IHttpClientFactory httpClientFactory)
+    public SearchController(IHttpClientFactory httpClientFactory, IConfiguration configuration)
     {
         mHttp = httpClientFactory.CreateClient("search-shards");
+
+        // In Docker the shards are other containers, set via Search__Backends__0, __1, ...
+        var configured = configuration.GetSection("Search:Backends").Get<string[]>();
+        Backends = configured is { Length: > 0 } ? configured : DefaultBackends;
     }
 
     [HttpGet("instances")]

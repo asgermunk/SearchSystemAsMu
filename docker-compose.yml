@@ -1,0 +1,84 @@
+# Two search shards behind the coordinator, plus the web frontend.
+#
+#   docker compose up --build
+#
+# Frontend: http://localhost:5136   Coordinator: http://localhost:5222/swagger
+# Shards:   http://localhost:5223/swagger and http://localhost:5224/swagger
+#
+# The shard databases are read from DB_DIR (default ../DB, next to this repo).
+# Index a shard (wipes that .db file!), then restart the shard:
+#   docker compose run --rm -i indexer "/data/<subfolder>" /db/AllenP.db
+# Search from the console:
+#   docker compose run --rm -it console
+
+services:
+  api-allen-p:
+    build:
+      context: .
+      dockerfile: API/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development   # keeps Swagger on
+      Search__SqliteDatabasePath: /db/AllenP.db
+    volumes:
+      - "${DB_DIR:-../DB}:/db"
+    ports:
+      - "5223:8080"
+
+  api-arnold-j:
+    build:
+      context: .
+      dockerfile: API/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Search__SqliteDatabasePath: /db/ArnoldJ.db
+    volumes:
+      - "${DB_DIR:-../DB}:/db"
+    ports:
+      - "5224:8080"
+
+  loadbalancer:
+    build:
+      context: .
+      dockerfile: LoadBalancer/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Search__Backends__0: http://api-allen-p:8080
+      Search__Backends__1: http://api-arnold-j:8080
+    ports:
+      - "5222:8080"
+    depends_on:
+      - api-allen-p
+      - api-arnold-j
+
+  # The browser calls the coordinator on localhost:5222 (ApiBaseUrl in
+  # SearchFrontend/wwwroot/appsettings.json), so that port must stay published.
+  frontend:
+    build:
+      context: .
+      dockerfile: SearchFrontend/Dockerfile
+    ports:
+      - "5136:80"
+    depends_on:
+      - loadbalancer
+
+  # One-off tools - not started by "docker compose up".
+  indexer:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: indexer/Dockerfile
+    stdin_open: true
+    volumes:
+      - "${DB_DIR:-../DB}:/db"
+      - "${DATA_DIR:-../seData copy}:/data:ro"
+
+  console:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: ConsoleSearch/Dockerfile
+    command: ["http://loadbalancer:8080/"]
+    stdin_open: true
+    tty: true
+    depends_on:
+      - loadbalancer
