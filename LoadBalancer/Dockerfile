@@ -1,11 +1,13 @@
-# Build from the solution root, since LoadBalancer references Shared:
+# Build from the solution root, since LoadBalancer references Shared and ServiceDefaults:
 #   docker build -f LoadBalancer/Dockerfile -t search-loadbalancer .
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY Shared/Shared.csproj Shared/
+COPY ServiceDefaults/ServiceDefaults.csproj ServiceDefaults/
 COPY LoadBalancer/LoadBalancer.csproj LoadBalancer/
 RUN dotnet restore LoadBalancer/LoadBalancer.csproj
 COPY Shared/ Shared/
+COPY ServiceDefaults/ ServiceDefaults/
 COPY LoadBalancer/ LoadBalancer/
 RUN dotnet publish LoadBalancer/LoadBalancer.csproj -c Release -o /app/publish --no-restore
 

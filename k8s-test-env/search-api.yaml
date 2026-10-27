@@ -1,0 +1,185 @@
+# Two search API shards, like api-allen-p / api-arnold-j in docker-compose.yml.
+#
+# 1. Build the image into minikube (from the solution root):
+#      minikube image build -t search-api:latest -f API/Dockerfile .
+# 2. Copy the shard databases onto the minikube node (/data survives restarts):
+#      minikube ssh -- sudo mkdir -p /data/search-db
+#      minikube cp ../DB/AllenP.db  /data/search-db/AllenP.db
+#      minikube cp ../DB/ArnoldJ.db /data/search-db/ArnoldJ.db
+# 3. Deploy:
+#      kubectl apply -f k8s-test-env/search-api.yaml
+# 4. After rebuilding the image, restart both shards:
+#      kubectl rollout restart deployment -n search -l app=search-api
+#
+# The shards cache search results in Redis; install it first (see redis-values.yaml),
+# since the password comes from the secret the Redis chart creates.
+#
+# Reach a shard with: minikube service api-allen-p -n search --url
+# In Grafana: logs in Loki   {service_name="search-api"}
+#             metrics in Prometheus, e.g. http_server_request_duration_seconds_bucket
+#             traces in Tempo, service search-api / search-loadbalancer
+#             cache: search_cache_hits_total, search_cache_misses_total
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: search
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-allen-p
+  namespace: search
+  labels:
+    app: search-api
+    shard: allen-p
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-api
+      shard: allen-p
+  template:
+    metadata:
+      annotations:
+        # Prometheus' kubernetes-pods job scrapes pods carrying these
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+      labels:
+        app: search-api
+        shard: allen-p
+    spec:
+      containers:
+        - name: api
+          image: search-api:latest
+          imagePullPolicy: Never   # built into minikube, not pulled from a registry
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development   # keeps Swagger on
+            - name: Search__SqliteDatabasePath
+              value: /db/AllenP.db
+            # search result cache - the Redis from redis-values.yaml
+            - name: Search__RedisConnectionString
+              value: search-cache-redis-master.search:6379
+            - name: Search__RedisPassword
+              valueFrom:
+                secretKeyRef:
+                  name: search-cache-redis
+                  key: redis-password
+            # OpenTelemetry (ServiceDefaults): traces to Tempo, logs to Loki, both as
+            # OTLP over HTTP to these full URLs. Metrics are scraped from /metrics.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: http://tempo.monitoring:4318/v1/traces
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: http://loki.monitoring:3100/otlp/v1/logs
+            # Loki turns these into the labels k8s_deployment_name and k8s_pod_name
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: k8s.namespace.name=search,k8s.deployment.name=api-allen-p,k8s.pod.name=$(POD_NAME)
+          volumeMounts:
+            - name: db
+              mountPath: /db
+      volumes:
+        - name: db
+          hostPath:
+            path: /data/search-db
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-allen-p
+  namespace: search
+spec:
+  type: NodePort
+  selector:
+    app: search-api
+    shard: allen-p
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-arnold-j
+  namespace: search
+  labels:
+    app: search-api
+    shard: arnold-j
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-api
+      shard: arnold-j
+  template:
+    metadata:
+      annotations:
+        # Prometheus' kubernetes-pods job scrapes pods carrying these
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+      labels:
+        app: search-api
+        shard: arnold-j
+    spec:
+      containers:
+        - name: api
+          image: search-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development
+            - name: Search__SqliteDatabasePath
+              value: /db/ArnoldJ.db
+            # search result cache - the Redis from redis-values.yaml
+            - name: Search__RedisConnectionString
+              value: search-cache-redis-master.search:6379
+            - name: Search__RedisPassword
+              valueFrom:
+                secretKeyRef:
+                  name: search-cache-redis
+                  key: redis-password
+            # OpenTelemetry (ServiceDefaults): traces to Tempo, logs to Loki, both as
+            # OTLP over HTTP to these full URLs. Metrics are scraped from /metrics.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: http://tempo.monitoring:4318/v1/traces
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: http://loki.monitoring:3100/otlp/v1/logs
+            # Loki turns these into the labels k8s_deployment_name and k8s_pod_name
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: k8s.namespace.name=search,k8s.deployment.name=api-arnold-j,k8s.pod.name=$(POD_NAME)
+          volumeMounts:
+            - name: db
+              mountPath: /db
+      volumes:
+        - name: db
+          hostPath:
+            path: /data/search-db
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-arnold-j
+  namespace: search
+spec:
+  type: NodePort
+  selector:
+    app: search-api
+    shard: arnold-j
+  ports:
+    - port: 8080
+      targetPort: 8080

@@ -1,0 +1,29 @@
+# A single Redis instance as a search result cache for the API shards in
+# search-api.yaml. It goes in the search namespace, so the shards can read the
+# password straight from the secret the chart creates (search-cache-redis,
+# key redis-password) - a secretKeyRef cannot cross namespaces.
+#
+#   helm install search-cache oci://registry-1.docker.io/bitnamicharts/redis \
+#        -n search --create-namespace -f k8s-test-env/redis-values.yaml
+#
+# The shards reach it on search-cache-redis-master.search:6379. Check it with:
+#   kubectl exec -n search search-cache-redis-master-0 -- \
+#        sh -c 'REDISCLI_AUTH="$(cat $REDIS_PASSWORD_FILE)" redis-cli keys "*"'
+# Keys look like AllenP:search:ci:10:hello world (shard:search:case:maxAmount:query).
+
+# one master, no replicas - a cache does not need them here
+architecture: standalone
+
+auth:
+  enabled: true   # the chart generates the password into the secret
+
+master:
+  # a cache can be lost on restart; no PersistentVolume to clean up afterwards
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi

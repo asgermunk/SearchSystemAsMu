@@ -1,0 +1,36 @@
+# Tempo as a Grafana datasource. Grafana's sidecar loads every ConfigMap with the
+# grafana_datasource label, the same way loki-stack adds Loki and Prometheus.
+#
+#   kubectl apply -f grafana-tempo-datasource.yaml
+#
+# "Logs for this span" opens Loki filtered on the span's trace id. The services
+# send their logs as OTLP, so Loki keeps trace_id as structured metadata on each
+# line, and service.name becomes the service_name label.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-tempo-datasource
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"
+data:
+  tempo-datasource.yaml: |-
+    apiVersion: 1
+    datasources:
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        access: proxy
+        url: http://tempo.monitoring:3200
+        jsonData:
+          nodeGraph:
+            enabled: true
+          tracesToLogsV2:
+            datasourceUid: loki   # the uid set in loki-custom-values.yaml
+            spanStartTimeShift: "-5m"
+            spanEndTimeShift: "5m"
+            tags:
+              - key: service.name
+                value: service_name
+            customQuery: true
+            query: '{$${__tags}} | trace_id="$${__trace.traceId}"'

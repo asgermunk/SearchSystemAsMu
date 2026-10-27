@@ -403,3 +403,6 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# stresstest/*.ps1 output
+k8s-test-env/stresstest/results/

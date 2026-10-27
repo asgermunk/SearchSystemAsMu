@@ -1,4 +1,9 @@
+using ServiceDefaults;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// metrics for Prometheus, traces and logs over OTLP; the calls to the shards are traced too
+builder.AddSearchTelemetry("search-loadbalancer");
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
@@ -53,6 +58,9 @@ app.MapStaticAssets();
 // attribute routed controllers need this - MapControllerRoute only adds the
 // conventional {controller}/{action} route
 app.MapControllers();
+
+// Prometheus scrapes /metrics
+app.MapSearchTelemetry();
 
 app.MapControllerRoute(
         name: "default",

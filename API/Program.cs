@@ -1,25 +1,26 @@
 using API.Search;
-using NLog.Web;
+using ServiceDefaults;
 using Shared;
 
 var builder = WebApplication.CreateBuilder(args);
 
-/* NLog replaces the default providers and writes JSON lines to stdout (see
- * nlog.config), which is where promtail picks them up for Loki in the cluster.
- */
-builder.Logging.ClearProviders();
-builder.Host.UseNLog();
+// metrics for Prometheus, traces and logs over OTLP, including the database timings
+// and the cache hits and misses
+builder.AddSearchTelemetry("search-api", InstrumentedDatabase.TelemetryName, CachedSearchLogic.TelemetryName);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
 /* The search service lives in this process. The database path comes from
- * configuration when it is set, otherwise from the shared constant.
+ * configuration when it is set, otherwise from the shared constant. Results are
+ * cached in Redis only when Search:RedisConnectionString is set.
  */
 builder.Services.AddSearch(new SearchOptions
 {
     SqliteDatabasePath = builder.Configuration["Search:SqliteDatabasePath"]
-                         ?? Paths.SQLITE_DATABASE
+                         ?? Paths.SQLITE_DATABASE,
+    RedisConnectionString = builder.Configuration["Search:RedisConnectionString"],
+    RedisPassword = builder.Configuration["Search:RedisPassword"]
 });
 
 builder.Services.AddCors(options =>
@@ -75,6 +76,9 @@ app.UseAuthorization();
 app.MapStaticAssets();
 
 app.MapControllers();
+
+// Prometheus scrapes /metrics
+app.MapSearchTelemetry();
 
 app.MapControllerRoute(
         name: "default",

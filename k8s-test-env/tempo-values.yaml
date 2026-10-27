@@ -1,0 +1,16 @@
+# Tempo (single binary) - stores the traces the search services send over OTLP.
+#
+#   helm upgrade --install tempo grafana/tempo --version 1.24.4 -n monitoring -f tempo-values.yaml
+#
+# The services send to http://tempo.monitoring:4318/v1/traces (OTLP over HTTP);
+# Grafana reads from http://tempo.monitoring:3200 (see grafana-tempo-datasource.yaml).
+# Storage is local to the pod and not persisted - fine for a test environment.
+tempo:
+  retention: 24h
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"

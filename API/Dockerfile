@@ -1,11 +1,13 @@
-# Build from the solution root, since API references Shared:
+# Build from the solution root, since API references Shared and ServiceDefaults:
 #   docker build -f API/Dockerfile -t search-api .
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY Shared/Shared.csproj Shared/
+COPY ServiceDefaults/ServiceDefaults.csproj ServiceDefaults/
 COPY API/API.csproj API/
 RUN dotnet restore API/API.csproj
 COPY Shared/ Shared/
+COPY ServiceDefaults/ ServiceDefaults/
 COPY API/ API/
 RUN dotnet publish API/API.csproj -c Release -o /app/publish --no-restore
 

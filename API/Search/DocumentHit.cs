@@ -6,9 +6,10 @@ namespace API.Search
 {
     public class DocumentHit
     {
-        public DocumentHit(BEDocument doc, int noOfHits, List<string> missing)
+        // parameter names match the properties, so CachedSearchLogic can deserialize it
+        public DocumentHit(BEDocument document, int noOfHits, List<string> missing)
         {
-            Document = doc;
+            Document = document;
             NoOfHits = noOfHits;
             Missing = missing;
         }

@@ -6,6 +6,40 @@ test_pod:
 loki:
   enabled: true
   isDefault: true
+  # The chart ships Loki 2.6.1. Loki 3 is needed for two reasons: Grafana 10.3's
+  # log volume panel uses `| drop`, and the OpenTelemetry Collector sends logs as
+  # OTLP to /otlp, which Loki only accepts from 3.0.
+  image:
+    tag: 3.6.18
+  # The chart's default config is written for Loki 2.x. These overrides remove
+  # the keys 3.x rejects (null deletes a key) and switch to the tsdb/v13 schema
+  # that OTLP's structured metadata needs. Storage is an emptyDir, so there is
+  # no old index to keep.
+  config:
+    ingester:
+      max_transfer_retries: null
+    limits_config:
+      enforce_metric_name: null
+      allow_structured_metadata: true
+      volume_enabled: true
+    chunk_store_config: null
+    table_manager: null
+    compactor:
+      shared_store: null
+    schema_config:
+      configs:
+        - from: "2024-01-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+    storage_config:
+      boltdb_shipper: null
+      tsdb_shipper:
+        active_index_directory: /data/loki/tsdb-index
+        cache_location: /data/loki/tsdb-cache
   url: http://{{(include "loki.serviceName" .)}}:{{ .Values.loki.service.port }}
   readinessProbe:
     httpGet:
@@ -19,7 +53,8 @@ loki:
     initialDelaySeconds: 45
   datasource:
     jsonData: "{}"
-    uid: ""
+    # fixed, so the Tempo datasource can link from a trace to its logs
+    uid: loki
 
 promtail:
   enabled: true
@@ -35,9 +70,16 @@ fluent-bit:
 grafana:
   enabled: true
   sidecar:
+    # loads dashboards from ConfigMaps labelled grafana_dashboard (see dashboards/)
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+    # only ConfigMaps labelled grafana_datasource - an empty label makes the
+    # sidecar copy every ConfigMap and Secret in the namespace into Grafana
     datasources:
-      label: ""
-      labelValue: ""
+      label: grafana_datasource
+      labelValue: "1"
       enabled: true
       maxLines: 1000
   image:
@@ -45,8 +87,17 @@ grafana:
   service:
     type: NodePort
 prometheus:
-  enabled: false
+  # Metrics for the performance test: CPU, memory and disk I/O per pod come from
+  # cAdvisor (kubelet), per node from node-exporter. Both are scraped by default.
+  enabled: true
   isDefault: false
+  alertmanager:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  server:
+    global:
+      scrape_interval: 15s
   url: http://{{ include "prometheus.fullname" .}}:{{ .Values.prometheus.server.service.servicePort }}{{ .Values.prometheus.server.prefixURL }}
   datasource:
     jsonData: "{}"
