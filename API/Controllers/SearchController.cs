@@ -13,10 +13,12 @@ namespace API.Controllers;
 public class SearchController : ControllerBase
 {
     private readonly ISearchLogic mSearchLogic;
+    private readonly ILogger<SearchController> mLogger;
 
-    public SearchController(ISearchLogic searchLogic)
+    public SearchController(ISearchLogic searchLogic, ILogger<SearchController> logger)
     {
         mSearchLogic = searchLogic;
+        mLogger = logger;
     }
 
     /// <summary>
@@ -35,13 +37,23 @@ public class SearchController : ControllerBase
         [FromQuery] bool caseSensitive = false)
     {
         if (string.IsNullOrWhiteSpace(query))
+        {
+            mLogger.LogWarning("Rejected search without a query");
             return BadRequest("A query must be given.");
+        }
         if (maxAmount < 1)
+        {
+            mLogger.LogWarning("Rejected search for {Query} with maxAmount {MaxAmount}", query, maxAmount);
             return BadRequest("maxAmount must be at least 1.");
+        }
 
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         var result = mSearchLogic.Search(words, maxAmount, caseSensitive);
+
+        mLogger.LogInformation(
+            "Search for {Query} (caseSensitive {CaseSensitive}) found {Hits} documents in {TimeUsedMs} ms, ignored {Ignored}",
+            query, caseSensitive, result.Hits, result.TimeUsed.TotalMilliseconds, result.Ignored);
 
         var response = new SearchResponse
         {

@@ -1,18 +1,26 @@
 using API.Search;
+using ServiceDefaults;
 using Shared;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// metrics for Prometheus, traces and logs over OTLP, including the database timings
+// and the cache hits and misses
+builder.AddSearchTelemetry("search-api", InstrumentedDatabase.TelemetryName, CachedSearchLogic.TelemetryName);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
 /* The search service lives in this process. The database path comes from
- * configuration when it is set, otherwise from the shared constant.
+ * configuration when it is set, otherwise from the shared constant. Results are
+ * cached in Redis only when Search:RedisConnectionString is set.
  */
 builder.Services.AddSearch(new SearchOptions
 {
     SqliteDatabasePath = builder.Configuration["Search:SqliteDatabasePath"]
-                         ?? Paths.SQLITE_DATABASE
+                         ?? Paths.SQLITE_DATABASE,
+    RedisConnectionString = builder.Configuration["Search:RedisConnectionString"],
+    RedisPassword = builder.Configuration["Search:RedisPassword"]
 });
 
 builder.Services.AddCors(options =>
@@ -68,6 +76,9 @@ app.UseAuthorization();
 app.MapStaticAssets();
 
 app.MapControllers();
+
+// Prometheus scrapes /metrics
+app.MapSearchTelemetry();
 
 app.MapControllerRoute(
         name: "default",

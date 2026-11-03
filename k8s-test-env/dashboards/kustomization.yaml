@@ -1,0 +1,18 @@
+# Grafana dashboards as a ConfigMap. Grafana's dashboard sidecar (enabled in
+# loki-custom-values.yaml) loads every ConfigMap labelled grafana_dashboard.
+#
+#   kubectl apply -k k8s-test-env/dashboards
+#
+# Edit a dashboard in Grafana, export it as JSON ("Export" -> "Export for sharing
+# externally" off) over the file here, and apply again to keep the change.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+configMapGenerator:
+  - name: grafana-dashboards-search
+    files:
+      - search-performance.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"

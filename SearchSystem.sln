@@ -20,6 +20,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SearchFrontend", "SearchFro
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoadBalancer", "LoadBalancer\LoadBalancer.csproj", "{9BE801B8-A011-41F3-8FC6-3BC4605BF3C2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServiceDefaults", "ServiceDefaults\ServiceDefaults.csproj", "{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -102,6 +104,18 @@ Global
 		{9BE801B8-A011-41F3-8FC6-3BC4605BF3C2}.Release|x64.Build.0 = Release|Any CPU
 		{9BE801B8-A011-41F3-8FC6-3BC4605BF3C2}.Release|x86.ActiveCfg = Release|Any CPU
 		{9BE801B8-A011-41F3-8FC6-3BC4605BF3C2}.Release|x86.Build.0 = Release|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Debug|x64.Build.0 = Debug|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Debug|x86.Build.0 = Debug|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Release|x64.ActiveCfg = Release|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Release|x64.Build.0 = Release|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Release|x86.ActiveCfg = Release|Any CPU
+		{F8E9DCD6-ECDF-4419-A954-2F6BF415D298}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -11,6 +11,7 @@ A proof-of-concept search engine (course code base for "Arkitektur principper").
 - `LoadBalancer/` — round robins across several API instances. Exposes the same route as the API (`api/search/instances`) so a client only changes its base URL to go through it.
 - `ConsoleSearch/` — the REPL, an HTTP client of the API. No search logic and no database reference.
 - `SearchFrontend/` — Blazor WebAssembly client, a Google styled search page ("Søgle"). Also just an HTTP client.
+- `ServiceDefaults/` — `AddSearchTelemetry`/`MapSearchTelemetry`, the OpenTelemetry setup shared by `API` and `LoadBalancer`: metrics on `/metrics` for Prometheus to scrape, traces and logs as OTLP over HTTP to `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (Tempo) and `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` (Loki's `/otlp`); without those variables nothing is exported. It is a separate project because `Shared` is also referenced by the Blazor WebAssembly client. In `API`, `Search/InstrumentedDatabase` decorates `IDatabase` with a span and a `search.database.duration` histogram per call, and `Search/CachedSearchLogic` decorates `ISearchLogic` with a Redis cache of whole results (`search.cache.hits`/`misses`/`errors` counters, 5 minute expiry, keys prefixed with the shard's database file name). The cache is only registered when `Search:RedisConnectionString` is set, and a Redis failure falls back to an uncached search; Redis is installed with the Bitnami chart and `k8s-test-env/redis-values.yaml`. The minikube setup (shards, coordinator, Loki/Prometheus/Grafana, Tempo) is in `k8s-test-env/`.
 - `Shared/` — `Paths` (connection strings), `BEDocument` (the indexer's document entity) and `Contracts/SearchResponse` (the API's wire contract, referenced by the service and both clients so the shape is defined once).
 
 The indexer picks its database engine at startup (SQLite or Postgres) via a console prompt. The search side is SQLite only.
@@ -60,6 +61,10 @@ dotnet run --project SearchFrontend --launch-profile http
 The API listens on `http://localhost:5223` (Swagger at `/swagger`), the load balancer on `http://localhost:5222`, the frontend on `http://localhost:5136`. The frontend points at the balancer through `ApiBaseUrl` in `SearchFrontend/wwwroot/appsettings.json`; `ConsoleSearch` still goes straight to the API on 5223 unless given another base URL. Both `LoadBalancer/Program.cs` and `API/Program.cs` have a `frontend` CORS policy set to `AllowAnyOrigin()`.
 
 There is no test project, linter, or CI configuration in the repo.
+
+### Docker
+
+Every project has a `Dockerfile` that must be built from the solution root (they all copy `Shared`). `docker-compose.yml` runs two API shards (`AllenP.db` on 5223, `ArnoldJ.db` on 5224), the coordinator on 5222 and the frontend (nginx) on 5136. The `.db` files are mounted from `DB_DIR` (default `../DB`). The coordinator reads its shards from `Search:Backends` (`Search__Backends__0`, ...) and falls back to the localhost ports when unset. `indexer` and `console` are under the `tools` profile and are run with `docker compose run`.
 
 ## Configuration that must be edited before anything runs
 

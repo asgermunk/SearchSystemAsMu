@@ -8,8 +8,7 @@ namespace Indexer
     {
         static void Main(string[] args)
         {
-            
-            new App().Run();
+            new App().Run(args);
 
             //new Renamer().Crawl(new DirectoryInfo(@"/Users/ole/data"));
 

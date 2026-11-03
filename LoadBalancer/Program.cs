@@ -1,7 +1,23 @@
+using ServiceDefaults;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// metrics for Prometheus, traces and logs over OTLP; the calls to the shards are traced too
+builder.AddSearchTelemetry("search-loadbalancer");
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddHttpClient("search-shards");
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.OpenApiInfo
+    {
+        Title = "Search Coordinator API",
+        Version = "v1",
+        Description = "Fans a search request out to every search shard and merges the results."
+    });
+});
 
 builder.Services.AddCors(options =>
 {
@@ -14,6 +30,15 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Search Coordinator API v1");
+    });
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -33,6 +58,9 @@ app.MapStaticAssets();
 // attribute routed controllers need this - MapControllerRoute only adds the
 // conventional {controller}/{action} route
 app.MapControllers();
+
+// Prometheus scrapes /metrics
+app.MapSearchTelemetry();
 
 app.MapControllerRoute(
         name: "default",

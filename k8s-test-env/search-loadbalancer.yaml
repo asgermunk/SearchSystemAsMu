@@ -1,0 +1,75 @@
+# The coordinator in front of the two shards in search-api.yaml, like
+# "loadbalancer" in docker-compose.yml. It sends every search to both shards and
+# merges the results.
+#
+# 1. Build the image into minikube (from the solution root):
+#      minikube image build -t search-loadbalancer:latest -f LoadBalancer/Dockerfile .
+# 2. Deploy (after search-api.yaml, which creates the namespace):
+#      kubectl apply -f k8s-test-env/search-loadbalancer.yaml
+# 3. After rebuilding the image:
+#      kubectl rollout restart deployment/search-loadbalancer -n search
+#
+# Reach it with: minikube service search-loadbalancer -n search --url
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-loadbalancer
+  namespace: search
+  labels:
+    app: search-loadbalancer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-loadbalancer
+  template:
+    metadata:
+      annotations:
+        # Prometheus' kubernetes-pods job scrapes pods carrying these
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+      labels:
+        app: search-loadbalancer
+    spec:
+      containers:
+        - name: loadbalancer
+          image: search-loadbalancer:latest
+          imagePullPolicy: Never   # built into minikube, not pulled from a registry
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development   # keeps Swagger on
+            # the shard Services in search-api.yaml, same namespace
+            - name: Search__Backends__0
+              value: http://api-allen-p:8080
+            - name: Search__Backends__1
+              value: http://api-arnold-j:8080
+            # OpenTelemetry (ServiceDefaults): traces to Tempo, logs to Loki, both as
+            # OTLP over HTTP to these full URLs. Metrics are scraped from /metrics.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: http://tempo.monitoring:4318/v1/traces
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: http://loki.monitoring:3100/otlp/v1/logs
+            # Loki turns these into the labels k8s_deployment_name and k8s_pod_name
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: k8s.namespace.name=search,k8s.deployment.name=search-loadbalancer,k8s.pod.name=$(POD_NAME)
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-loadbalancer
+  namespace: search
+spec:
+  type: NodePort
+  selector:
+    app: search-loadbalancer
+  ports:
+    - port: 8080
+      targetPort: 8080

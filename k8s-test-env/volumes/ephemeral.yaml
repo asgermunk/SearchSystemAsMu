@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kortvarig-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kortvarig-app
+  template:
+    metadata:
+      labels:
+        app: kortvarig-app
+    spec:
+      containers:
+        - name: kortvarig-container
+          image: busybox:latest
+          command: ["/bin/sh", "-c", "sleep 3600"] # Holder containeren kørende
+          volumeMounts:
+            - name: ephemeral-opbevaring
+              mountPath: /data
+      volumes:
+        - name: ephemeral-opbevaring
+          emptyDir: {}

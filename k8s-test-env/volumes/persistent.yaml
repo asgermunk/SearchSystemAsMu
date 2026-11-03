@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sqlite-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sqlite-app
+  template:
+    metadata:
+      labels:
+        app: sqlite-app
+    spec:
+      containers:
+        - name: sqlite-container
+          image: busybox:latest
+          command: ["/bin/sh", "-c", "sleep 3600"] # Holder containeren kørende
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: /data
+      volumes:
+        - name: sqlite-data
+          persistentVolumeClaim:
+            claimName: mit-sqlite-pvc
